@@ -53,9 +53,11 @@ export class ResponsiveCanvas {
    * @param {object}  [options]
    * @param {number}  [options.scale=20] — number of grid cells that fit across the width
    */
-  constructor(container, { scale = 20 } = {}) {
+  constructor({stage: container, gridConfig = { color : 'rgba(128,128,128,0.25)', dotted : false, lineWidth : 1, scale: 20 }}) {
+    Object.assign(this, { userConfig: { grid: gridConfig } })
+    
     this.#container = container;
-    this.#scale = scale;
+    this.#scale = this.userConfig.grid.scale ?? 20;
 
     this.#canvas = document.createElement('canvas');
     this.#canvas.style.display = 'block';
@@ -160,16 +162,16 @@ export class ResponsiveCanvas {
    * @param {boolean} [options.dotted=false]
    * @param {number}  [options.lineWidth=1]
    */
-  drawGrid({ strokeStyle = 'rgba(128,128,128,0.25)', dotted = false, lineWidth = 1 } = {}) {
+  drawGrid(/* { strokeStyle = 'rgba(128,128,128,0.25)', dotted = false, lineWidth = 1 } */) {
     const ctx = this.#ctx;
     const { GRIDCELL_DIM, width, height, dpr } = this.#grid;
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.strokeStyle = strokeStyle;
-    ctx.lineWidth = lineWidth * dpr;
+    ctx.strokeStyle = this.userConfig.grid.color;
+    ctx.lineWidth = this.userConfig.grid.lineWidth * dpr;
 
-    if (dotted) {
+    if (this.userConfig.grid.dotted) {
       ctx.setLineDash([2 * dpr, 4 * dpr]);
     }
 
