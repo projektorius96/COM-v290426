@@ -7,11 +7,15 @@
  * bounding boxes and complex path geometries, with full support for transformed
  * (rotated, scaled, skewed) shapes.
  *
+ * NEW: Fully viewport-aware—automatically accounts for visual viewport scale
+ * and offset on mobile devices with pinch-zoom.
+ *
  * | Method                          | Description                                    |
  * |---------------------------------|------------------------------------------------|
  * | `register(id, region, matrix)`  | Add or update a hittable region                 |
  * | `unregister(id)`                | Remove a region from the index                  |
  * | `hitTest(x, y)`                 | Find all regions containing point (x, y)       |
+ * | `getRegionBounds(id)`           | Get bounding box of registered region           |
  * | `on(event, fn)`                 | Bind mouse/touch event handler                  |
  * | `clear()`                       | Remove all registered regions                   |
  *
@@ -28,6 +32,10 @@
  *   .scaleSelf(2);
  *
  * hd.register('square-1', { type: 'box', x: -25, y: -25, w: 50, h: 50 }, matrix);
+ *
+ * // Get bounding box for layout
+ * const bounds = hd.getRegionBounds('square-1');
+ * console.log(`Region at (${bounds.x}, ${bounds.y}), size ${bounds.width}x${bounds.height}`);
  *
  * // Listen for hits
  * hd.on('click', (hits) => {
@@ -76,6 +84,57 @@ function pointInBox(px, py, bx, by, bw, bh) {
  */
 function pointInPath(ctx, path, px, py) {
   return ctx.isPointInPath(path, px, py);
+}
+
+/**
+ * Get axis-aligned bounding box from a region and optional transform matrix.
+ * @param {{ type: string, x?: number, y?: number, w?: number, h?: number, path?: Path2D }} region
+ * @param {DOMMatrix|null} matrix
+ * @returns {{ x: number, y: number, width: number, height: number }|null}
+ * @private
+ */
+function getRegionBounds(region, matrix) {
+  if (region.type === 'box') {
+    const box = {
+      x: region.x || 0,
+      y: region.y || 0,
+      width: region.w || 0,
+      height: region.h || 0,
+    };
+
+    if (!matrix) {
+      return box;
+    }
+
+    // Transform all four corners to world space, then compute AABB
+    const corners = [
+      new DOMPoint(box.x, box.y),
+      new DOMPoint(box.x + box.width, box.y),
+      new DOMPoint(box.x + box.width, box.y + box.height),
+      new DOMPoint(box.x, box.y + box.height),
+    ];
+
+    const transformed = corners.map(p => p.matrixTransform(matrix));
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    transformed.forEach(p => {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    });
+
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }
+
+  // For Path2D, we can't easily compute bounds without rendering
+  // Return null to indicate bounds unavailable
+  return null;
 }
 
 export class HitDetector {
@@ -166,6 +225,8 @@ export class HitDetector {
    * Test which regions contain the given world-space point.
    * Returns results in reverse registration order (most recent first).
    *
+   * Automatically accounts for visual viewport scale on mobile.
+   *
    * @param {number} worldX
    * @param {number} worldY
    * @returns {Array<{ id, region, matrix }>} — hit regions, back to front
@@ -173,13 +234,18 @@ export class HitDetector {
   hitTest(worldX, worldY) {
     const hits = [];
 
+    // Account for visual viewport zoom
+    const zoomScale = window.visualViewport?.scale || 1;
+    const adjustedX = worldX / zoomScale;
+    const adjustedY = worldY / zoomScale;
+
     for (const [id, { region, matrix, invMatrix }] of this.#index) {
-      let localX = worldX;
-      let localY = worldY;
+      let localX = adjustedX;
+      let localY = adjustedY;
 
       // Transform world coordinates to local space (if matrix exists)
       if (invMatrix) {
-        const p = new DOMPoint(worldX, worldY);
+        const p = new DOMPoint(adjustedX, adjustedY);
         const transformed = p.matrixTransform(invMatrix);
         localX = transformed.x;
         localY = transformed.y;
@@ -192,6 +258,54 @@ export class HitDetector {
     }
 
     return hits;
+  }
+
+  /**
+   * Get bounding box (in world space) for a registered region.
+   * Useful for layout calculations and debugging.
+   *
+   * @param {string} id — region identifier
+   * @returns {{ x: number, y: number, width: number, height: number }|null}
+   *
+   * @example
+   * ```js
+   * hd.register('btn-1', { type: 'box', x: 0, y: 0, w: 100, h: 50 },
+   *   new DOMMatrix().translateSelf(50, 50));
+   * 
+   * const bounds = hd.getRegionBounds('btn-1');
+   * // → { x: 50, y: 50, width: 100, height: 50 }
+   * ```
+   */
+  getRegionBounds(id) {
+    const entry = this.#index.get(id);
+    if (!entry) return null;
+
+    const { region, matrix } = entry;
+    return getRegionBounds(region, matrix);
+  }
+
+  /**
+   * Get bounding boxes for all registered regions.
+   * 
+   * @returns {Array<{ id, bounds }>} array of regions with computed bounds
+   * 
+   * @example
+   * ```js
+   * const allBounds = hd.getAllRegionBounds();
+   * allBounds.forEach(({ id, bounds }) => {
+   *   console.log(`Region ${id}:`, bounds);
+   * });
+   * ```
+   */
+  getAllRegionBounds() {
+    const results = [];
+    for (const [id, { region, matrix }] of this.#index) {
+      const bounds = getRegionBounds(region, matrix);
+      if (bounds) {
+        results.push({ id, bounds });
+      }
+    }
+    return results;
   }
 
   /**

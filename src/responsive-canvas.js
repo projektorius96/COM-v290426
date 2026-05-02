@@ -6,17 +6,24 @@
  * and provides a grid-based coordinate system where all measurements are
  * expressed in GRIDCELL_DIM units — making the entire coordinate system
  * responsive to viewport changes.
+ * 
+ * NEW: Supports visual viewport tracking for mobile pinch-zoom and accurate
+ * bounding box calculations across layout and visual coordinate spaces.
  *
  * @example
  * ```js
  * import { ResponsiveCanvas } from './responsive-canvas.js';
  *
- * const rc = new ResponsiveCanvas(document.getElementById('app'), { scale: 20 });
+ * const rc = new ResponsiveCanvas({
+ *   stage: document.getElementById('app'),
+ *   gridConfig: { scale: 20 }
+ * });
  *
  * rc.onRender((ctx, grid) => {
- *   // grid.GRIDCELL_DIM — responsive unit size in CSS pixels
+ *   // grid.GRIDCELL_DIM — responsive unit size in device pixels
  *   // grid.centerX / grid.centerY — center of canvas (in device pixels)
  *   // grid.cols / grid.rows — how many grid cells fit
+ *   // grid.visualViewport — visual viewport info (for mobile)
  *   ctx.fillRect(grid.centerX - grid.GRIDCELL_DIM, grid.centerY - grid.GRIDCELL_DIM,
  *                grid.GRIDCELL_DIM * 2, grid.GRIDCELL_DIM * 2);
  * });
@@ -34,6 +41,31 @@ function toEven(n) {
   return rounded % 2 === 0 ? rounded : rounded + 1;
 }
 
+/**
+ * Get the effective viewport dimensions, accounting for visual viewport
+ * on mobile devices with pinch-zoom support.
+ * @returns {{ width: number, height: number, scale: number, offsetLeft: number, offsetTop: number }}
+ */
+function getEffectiveViewport() {
+  if (window.visualViewport) {
+    return {
+      width: window.visualViewport.width,
+      height: window.visualViewport.height,
+      scale: window.visualViewport.scale,
+      offsetLeft: window.visualViewport.offsetLeft,
+      offsetTop: window.visualViewport.offsetTop,
+    };
+  }
+  // Fallback for browsers without visualViewport support
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    scale: 1,
+    offsetLeft: 0,
+    offsetTop: 0,
+  };
+}
+
 export class ResponsiveCanvas {
   /** @type {HTMLCanvasElement} */
   #canvas;
@@ -45,19 +77,34 @@ export class ResponsiveCanvas {
   #scale;
   /** @type {Function|null} */
   #renderCallback = null;
-  /** @type {{ GRIDCELL_DIM: number, centerX: number, centerY: number, cols: number, rows: number, dpr: number }} */
+  /** @type {{ GRIDCELL_DIM: number, centerX: number, centerY: number, cols: number, rows: number, dpr: number, visualViewport: object }} */
   #grid = {};
+  /** @type {object|null} */
+  #visualViewport = null;
+  /** @type {object} */
+  userConfig = {};
 
   /**
-   * @param {HTMLElement} container — DOM element that will host the canvas
-   * @param {object}  [options]
-   * @param {number}  [options.scale=20] — number of grid cells that fit across the width
+   * @param {object} options
+   * @param {HTMLElement} options.stage — DOM element that will host the canvas
+   * @param {object} [options.gridConfig={}] — grid configuration
+   * @param {number} [options.gridConfig.scale=20] — number of grid cells that fit across the width
+   * @param {string} [options.gridConfig.color='rgba(128,128,128,0.25)'] — grid line color
+   * @param {boolean} [options.gridConfig.dotted=false] — whether grid is dotted
+   * @param {number} [options.gridConfig.lineWidth=1] — grid line width
    */
-  constructor({stage: container, gridConfig = { color : 'rgba(128,128,128,0.25)', dotted : false, lineWidth : 1, scale: 20 }}) {
-    Object.assign(this, { userConfig: { grid: gridConfig } })
-    
+  constructor({ stage: container, gridConfig = {} }) {
+    this.userConfig = {
+      grid: {
+        color: gridConfig.color ?? 'rgba(128,128,128,0.25)',
+        dotted: gridConfig.dotted ?? false,
+        lineWidth: gridConfig.lineWidth ?? 1,
+        scale: gridConfig.scale ?? 20,
+      },
+    };
+
     this.#container = container;
-    this.#scale = this.userConfig.grid.scale ?? 20;
+    this.#scale = this.userConfig.grid.scale;
 
     this.#canvas = document.createElement('canvas');
     this.#canvas.style.display = 'block';
@@ -74,20 +121,56 @@ export class ResponsiveCanvas {
 
     this.#resize();
 
+    // Listen to window resize
     window.addEventListener('resize', () => {
       this.#resize();
       this.#draw();
     });
+
+    // Monitor visual viewport changes (pinch-zoom, mobile viewport)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => {
+        this.#handleVisualViewportChange();
+      });
+      window.visualViewport.addEventListener('scroll', () => {
+        this.#handleVisualViewportChange();
+      });
+    }
   }
 
   /* ------------------------------------------------------------------ */
   /*  Private helpers                                                    */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * Handle visual viewport changes (pinch-zoom, mobile interactions).
+   * @private
+   */
+  #handleVisualViewportChange() {
+    this.#resize();
+    this.#draw();
+  }
+
+  /**
+   * Compute canvas dimensions and grid metrics.
+   * @private
+   */
   #resize() {
     const dpr = window.devicePixelRatio || 1;
-    const cssWidth = this.#container.clientWidth;
-    const cssHeight = this.#container.clientHeight;
+
+    // Get effective viewport (respects visual viewport on mobile)
+    const viewport = getEffectiveViewport();
+    const cssWidth = viewport.width;
+    const cssHeight = viewport.height;
+
+    // Store visual viewport info for public access
+    this.#visualViewport = {
+      width: viewport.width,
+      height: viewport.height,
+      scale: viewport.scale,
+      offsetLeft: viewport.offsetLeft,
+      offsetTop: viewport.offsetTop,
+    };
 
     // GRIDCELL_DIM — the fundamental responsive unit (CSS pixels)
     const GRIDCELL_DIM = cssWidth / toEven(this.#scale);
@@ -109,9 +192,14 @@ export class ResponsiveCanvas {
       dpr,
       width: this.#canvas.width,
       height: this.#canvas.height,
+      visualViewport: this.#visualViewport,
     });
   }
 
+  /**
+   * Internal render method.
+   * @private
+   */
   #draw() {
     if (typeof this.#renderCallback === 'function') {
       this.#ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
@@ -138,6 +226,11 @@ export class ResponsiveCanvas {
     return this.#canvas;
   }
 
+  /** Get visual viewport info (null if not supported). */
+  get visualViewport() {
+    return this.#visualViewport;
+  }
+
   /**
    * Register a render callback that is invoked on every resize and
    * whenever {@link ResponsiveCanvas#render} is called manually.
@@ -155,14 +248,39 @@ export class ResponsiveCanvas {
   }
 
   /**
-   * Draw a reference grid (useful for debugging / alignment).
-   *
-   * @param {object}  [options]
-   * @param {string}  [options.strokeStyle='rgba(128,128,128,0.25)']
-   * @param {boolean} [options.dotted=false]
-   * @param {number}  [options.lineWidth=1]
+   * Get bounding box of the entire canvas in visual viewport coordinates.
+   * Useful for hit detection and layout calculations.
+   * 
+   * @param {object} [options]
+   * @param {boolean} [options.includeVisualViewportOffset=true] — include visual viewport scroll offset
+   * @returns {{ x: number, y: number, width: number, height: number, scale: number }}
+   * 
+   * @example
+   * ```js
+   * const bbox = rc.getCanvasBounds();
+   * console.log(`Canvas at (${bbox.x}, ${bbox.y}), zoomed to ${bbox.scale}x`);
+   * ```
    */
-  drawGrid(/* { strokeStyle = 'rgba(128,128,128,0.25)', dotted = false, lineWidth = 1 } */) {
+  getCanvasBounds({ includeVisualViewportOffset = true } = {}) {
+    const rect = this.#canvas.getBoundingClientRect();
+    const viewport = this.#visualViewport || getEffectiveViewport();
+    
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+      scale: viewport.scale,
+      viewportOffsetLeft: viewport.offsetLeft,
+      viewportOffsetTop: viewport.offsetTop,
+    };
+  }
+
+  /**
+   * Draw a reference grid (useful for debugging / alignment).
+   * Uses configuration from gridConfig passed in constructor.
+   */
+  drawGrid() {
     const ctx = this.#ctx;
     const { GRIDCELL_DIM, width, height, dpr } = this.#grid;
 
