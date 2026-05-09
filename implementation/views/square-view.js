@@ -1,8 +1,8 @@
 import { degToRad } from "../utils.js";
 
-export class Line {
+export class Square {
 
-    static draw({container, options = { points: [], color: 'grey', lineWidth: 2 }}) {
+    static draw({container, options = { color: 'red', lineWidth: 4 }}) {
 
         container.onRender((ctx, grid) => {
 

@@ -43,8 +43,29 @@ export function setRange(start, step, end, isIncluded=true, skip = []) {
  * @param {Number} deg - angle degrees, hence `"deg"`
  * @returns takes a the input and converts it to raw number in radians
  */
-export function degToRad(deg){
+export function degToRad(deg) {
     return (
         deg * (Math.PI / 180)
     )
 }
+
+/* === MISC. === */
+
+const Print = new Proxy(
+    Object.create(null)
+    ,
+    {
+        get(nil, key) {
+            return `${key}`;
+        }
+    }
+)
+
+export const PRINT = Object.assign(
+    Object.create(null)
+    ,
+    {
+        [Print.COLOR] : Print,
+        [Print.ID] : Print,
+    }
+)

@@ -9,10 +9,20 @@ body {
     margin: 0;
 }
 
-div:has(canvas) {
-    position: absolute;
-        top: 0;
-        left: 0;
-    width: 100vw;
-    height: 100vh;
+@layer top {
+
+    div:has(canvas) {
+        position: absolute;
+            top: 0;
+            left: 0;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    canvas {
+        position: inherit;
+        top: inherit;
+        left: inherit;
+    }
+
 }

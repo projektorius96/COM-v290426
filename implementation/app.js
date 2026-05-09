@@ -1,19 +1,13 @@
-// === WRAPPER-DEFINED IMPORTS ===
-import { ResponsiveCanvas } from '../src/responsive-canvas.js';
-
-// === USER-DEFINED IMPORTS ===
-import Views from './views/index.js';
-
-export class Stage {
+export default class Stage {
 
     static init({ container }) {
 
-        // Canvas host
+        // Initiating the Stage (entry point)
         const stage = document.createElement('div');
-        container.appendChild(stage);
+            container.appendChild(stage);
 
-        // // Clear previous canvases (layers)
-        // stage.innerHTML = '';
+        // // Clear previous canvas[-es] (a.k.a. layer[-s])
+        stage.innerHTML = '';
 
         Object.assign(stage, { on: this.on.bind(null, stage) })
 
