@@ -3,13 +3,7 @@ import userConfig from './user-config.json' with {type: 'json'};
 import App from './app.js';
 import Views from './views/index.js';
 
-/**
- * 
- * @return {void} 
- */
-export default function ({Layer}) {
-
-const { ID, COLOR } = PRINT;
+export default function ({Layer, HitDetector}) {
 
 App
 .init({
@@ -32,7 +26,7 @@ App
             }
         });
     });
-
-    return;
     
 }
+
+const { ID, COLOR } = PRINT;

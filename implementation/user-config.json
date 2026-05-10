@@ -2,7 +2,7 @@
     "grid" : { 
         "scale": 20,
         "color" : "blue",
-        "dotted" : false, 
+        "dotted" : true, 
         "lineWidth" : 1 
     }
 }
