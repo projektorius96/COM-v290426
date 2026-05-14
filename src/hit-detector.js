@@ -3,12 +3,19 @@
  * @description Efficient point-in-region hit detection for canvas entities.
  *
  * {@link HitDetector} manages a spatial index of drawable regions and provides
- * fast hit-testing for mouse/touch interactions. It supports both axis-aligned
- * bounding boxes and complex path geometries, with full support for transformed
+ * fast hit-testing for mouse/touch interactions. It supports:
+ *   - Axis-aligned bounding boxes
+ *   - Filled path geometries (isPointInPath)
+ *   - Stroked path geometries (isPointInStroke) — perfect for line-based shapes
+ *
+ * All detections support full transformations (rotation, scale, skew) with full support for transformed
  * (rotated, scaled, skewed) shapes.
  *
  * NEW: Fully viewport-aware—automatically accounts for visual viewport scale
  * and offset on mobile devices with pinch-zoom.
+ *
+ * NEW: Automatically tracks which canvas instance it's attached to via the
+ * canvas's auto-incremented ID. All hit results include the canvas ID.
  *
  * | Method                          | Description                                    |
  * |---------------------------------|------------------------------------------------|
@@ -22,28 +29,26 @@
  * @example
  * ```js
  * import { HitDetector } from './hit-detector.js';
+ * import { ResponsiveCanvas } from './responsive-canvas.js';
  *
- * const hd = new HitDetector(canvas);
+ * const rc = new ResponsiveCanvas(container, { scale: 20 });
+ * const hd = new HitDetector(rc.canvas);
  *
- * // Register a transformed square
- * const matrix = new DOMMatrix()
- *   .translateSelf(200, 150)
- *   .rotateSelf(45)
- *   .scaleSelf(2);
+ * // Stroked line/path (NEW!)
+ * const strokePath = new Path2D();
+ * strokePath.moveTo(0, 0);
+ * strokePath.lineTo(100, 100);
+ * hd.register('line-1', { type: 'stroke', path: strokePath }, null);
  *
- * hd.register('square-1', { type: 'box', x: -25, y: -25, w: 50, h: 50 }, matrix);
+ * // Filled path (traditional)
+ * const filledPath = new Path2D();
+ * filledPath.arc(0, 0, 50, 0, Math.PI * 2);
+ * hd.register('circle-1', { type: 'path', path: filledPath }, null);
  *
- * // Get bounding box for layout
- * const bounds = hd.getRegionBounds('square-1');
- * console.log(`Region at (${bounds.x}, ${bounds.y}), size ${bounds.width}x${bounds.height}`);
- *
- * // Listen for hits
+ * // Listen for hits (includes canvas ID automatically)
  * hd.on('click', (hits) => {
- *   console.log('Clicked on:', hits.map(h => h.id));
+ *   console.log('Clicked on:', hits.map(h => `${h.id} (canvas: ${h.canvasId})`));
  * });
- *
- * // Test a point
- * const hitIds = hd.hitTest(250, 200).map(h => h.id);
  * ```
  */
 
@@ -84,6 +89,18 @@ function pointInBox(px, py, bx, by, bw, bh) {
  */
 function pointInPath(ctx, path, px, py) {
   return ctx.isPointInPath(path, px, py);
+}
+
+/**
+ * Test if a point is on/near a stroked path using the isPointInStroke API.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Path2D} path
+ * @param {number} px — point x
+ * @param {number} py — point y
+ * @returns {boolean}
+ */
+function pointInStroke(ctx, path, px, py) {
+  return ctx.isPointInStroke(path, px, py);
 }
 
 /**
@@ -132,7 +149,7 @@ function getRegionBounds(region, matrix) {
     };
   }
 
-  // For Path2D, we can't easily compute bounds without rendering
+  // For Path2D (both 'path' and 'stroke'), we can't easily compute bounds without rendering
   // Return null to indicate bounds unavailable
   return null;
 }
@@ -142,20 +159,41 @@ export class HitDetector {
   #canvas;
   /** @type {CanvasRenderingContext2D} */
   #ctx;
+  /** @type {string|number} */
+  #canvasId;
   /** @type {Map<string, { region, matrix, invMatrix }>} */
   #index = new Map();
   /** @type {Map<string, Function>} */
   #handlers = new Map();
 
   /**
-   * @param {HTMLCanvasElement} canvas
+   * @param {HTMLCanvasElement} canvas — the canvas element to attach to
+   * @param {object} [options]
+   * @param {string|number} [options.canvasId] — optional override for canvas ID (uses canvas.__canvasId if not provided)
    */
-  constructor(canvas) {
+  constructor(canvas, { canvasId } = {}) {
     this.#canvas = canvas;
     this.#ctx = canvas.getContext('2d');
+    
+    // Extract canvas ID: use provided override, fallback to canvas's own ID, or null
+    this.#canvasId = canvasId !== undefined ? canvasId : canvas.__canvasId || null;
 
     // Bind mouse/touch events to the canvas
     this.#setupEventListeners();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Accessors                                                          */
+  /* ------------------------------------------------------------------ */
+
+  /** Get the canvas ID for this detector. */
+  get canvasId() {
+    return this.#canvasId;
+  }
+
+  /** Get the underlying HTMLCanvasElement. */
+  get canvas() {
+    return this.#canvas;
   }
 
   /* ------------------------------------------------------------------ */
@@ -167,7 +205,8 @@ export class HitDetector {
    *
    * Supported region types:
    *   - `{ type: 'box', x, y, w, h }` — axis-aligned rectangle
-   *   - `{ type: 'path', path: Path2D }` — arbitrary Path2D geometry
+   *   - `{ type: 'path', path: Path2D }` — filled path geometry (isPointInPath)
+   *   - `{ type: 'stroke', path: Path2D }` — stroked path geometry (isPointInStroke) for line-based shapes
    *
    * If `matrix` is provided, hit tests are transformed to local space
    * before testing against the region (handles rotation, scale, skew).
@@ -182,14 +221,18 @@ export class HitDetector {
    * // Simple box
    * hd.register('btn-play', { type: 'box', x: 0, y: 0, w: 100, h: 50 });
    *
-   * // Rotated box
+   * // Rotated filled path
    * const m = new DOMMatrix().translateSelf(200, 150).rotateSelf(45);
-   * hd.register('rotated', { type: 'box', x: -25, y: -25, w: 50, h: 50 }, m);
+   * const filledPath = new Path2D();
+   * filledPath.arc(0, 0, 50, 0, Math.PI * 2);
+   * hd.register('circle', { type: 'path', path: filledPath }, m);
    *
-   * // Path geometry
-   * const p = new Path2D();
-   * p.arc(0, 0, 50, 0, Math.PI * 2);
-   * hd.register('circle', { type: 'path', path: p });
+   * // Stroked path (line-based shape)
+   * const strokePath = new Path2D();
+   * strokePath.moveTo(0, 0);
+   * strokePath.lineTo(100, 100);
+   * strokePath.lineTo(200, 50);
+   * hd.register('stroke-line', { type: 'stroke', path: strokePath }, m);
    * ```
    */
   register(id, region, matrix = null) {
@@ -229,7 +272,7 @@ export class HitDetector {
    *
    * @param {number} worldX
    * @param {number} worldY
-   * @returns {Array<{ id, region, matrix }>} — hit regions, back to front
+   * @returns {Array<{ id, region, matrix, canvasId }>} — hit regions, back to front
    */
   hitTest(worldX, worldY) {
     const hits = [];
@@ -253,7 +296,7 @@ export class HitDetector {
 
       // Test against region
       if (this.#testRegion(region, localX, localY)) {
-        hits.push({ id, region, matrix });
+        hits.push({ id, region, matrix, canvasId: this.#canvasId });
       }
     }
 
@@ -321,6 +364,8 @@ export class HitDetector {
       return pointInBox(px, py, region.x, region.y, region.w, region.h);
     } else if (region.type === 'path') {
       return pointInPath(this.#ctx, region.path, px, py);
+    } else if (region.type === 'stroke') {
+      return pointInStroke(this.#ctx, region.path, px, py);
     }
     return false;
   }
