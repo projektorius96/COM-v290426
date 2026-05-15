@@ -6,9 +6,12 @@
  * and provides a grid-based coordinate system where all measurements are
  * expressed in GRIDCELL_DIM units — making the entire coordinate system
  * responsive to viewport changes.
- * 
+ *
  * NEW: Supports visual viewport tracking for mobile pinch-zoom and accurate
  * bounding box calculations across layout and visual coordinate spaces.
+ *
+ * NEW: Each canvas instance receives an auto-incremented ID for layer identification.
+ * The ID is stored as `canvas.__canvasId` and also accessible via the `id` getter.
  *
  * @example
  * ```js
@@ -18,6 +21,8 @@
  *   stage: document.getElementById('app'),
  *   gridConfig: { scale: 20 }
  * });
+ *
+ * console.log(rc.id); // → 1 (auto-incremented)
  *
  * rc.onRender((ctx, grid) => {
  *   // grid.GRIDCELL_DIM — responsive unit size in device pixels
@@ -29,6 +34,12 @@
  * });
  * ```
  */
+
+/**
+ * Static counter for auto-incrementing canvas IDs.
+ * @private
+ */
+let canvasIdCounter = 0;
 
 /**
  * Force a number to the nearest even integer.
@@ -75,6 +86,8 @@ export class ResponsiveCanvas {
   #container;
   /** @type {number} */
   #scale;
+  /** @type {string|number} */
+  #id;
   /** @type {Function|null} */
   #renderCallback = null;
   /** @type {{ GRIDCELL_DIM: number, centerX: number, centerY: number, cols: number, rows: number, dpr: number, visualViewport: object }} */
@@ -87,13 +100,16 @@ export class ResponsiveCanvas {
   /**
    * @param {object} options
    * @param {HTMLElement} options.stage — DOM element that will host the canvas
+   * @param {string|number} [options.id] — optional custom ID (auto-incremented if not provided)
    * @param {object} [options.gridConfig={}] — grid configuration
    * @param {number} [options.gridConfig.scale=20] — number of grid cells that fit across the width
    * @param {string} [options.gridConfig.color='rgba(128,128,128,0.25)'] — grid line color
    * @param {boolean} [options.gridConfig.dotted=false] — whether grid is dotted
    * @param {number} [options.gridConfig.lineWidth=1] — grid line width
    */
-  constructor({ stage: container, gridConfig = {} }) {
+  constructor({ stage: container, id = undefined, gridConfig = {} }) {
+    this.#id = id !== undefined ? id : ++canvasIdCounter;
+
     this.userConfig = {
       grid: {
         color: gridConfig.color ?? 'rgba(128,128,128,0.25)',
@@ -107,6 +123,9 @@ export class ResponsiveCanvas {
     this.#scale = this.userConfig.grid.scale;
 
     this.#canvas = document.createElement('canvas');
+    // Store the ID on the canvas element itself for HitDetector to access
+    this.#canvas.__canvasId = this.#id;
+
     this.#canvas.style.display = 'block';
     this.#canvas.style.width = '100%';
     this.#canvas.style.height = '100%';
@@ -211,6 +230,11 @@ export class ResponsiveCanvas {
   /*  Public API                                                        */
   /* ------------------------------------------------------------------ */
 
+  /** The unique ID for this canvas instance. */
+  get id() {
+    return this.#id;
+  }
+
   /** The current grid metrics (read-only, frozen). */
   get grid() {
     return this.#grid;
@@ -250,11 +274,11 @@ export class ResponsiveCanvas {
   /**
    * Get bounding box of the entire canvas in visual viewport coordinates.
    * Useful for hit detection and layout calculations.
-   * 
+   *
    * @param {object} [options]
    * @param {boolean} [options.includeVisualViewportOffset=true] — include visual viewport scroll offset
    * @returns {{ x: number, y: number, width: number, height: number, scale: number }}
-   * 
+   *
    * @example
    * ```js
    * const bbox = rc.getCanvasBounds();
@@ -264,7 +288,7 @@ export class ResponsiveCanvas {
   getCanvasBounds({ includeVisualViewportOffset = true } = {}) {
     const rect = this.#canvas.getBoundingClientRect();
     const viewport = this.#visualViewport || getEffectiveViewport();
-    
+
     return {
       x: rect.left,
       y: rect.top,
