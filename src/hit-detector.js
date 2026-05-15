@@ -13,10 +13,11 @@
  *   - **Canvas-aware**: Auto-detects canvas ID from ResponsiveCanvas instances
  *   - **Hierarchical events**: Handlers fire in registration order (back-to-front)
  *   - **Chainable API**: All registration methods return `this` for method chaining
+ *   - **Stroke control**: Per-region stroke properties for precise stroke-based hit detection
  *
  * | Method                          | Returns  | Description                                    |
  * |---------------------------------|----------|------------------------------------------------|
- * | `register(id, region, matrix)`  | HitDetector | Add or update a hittable region              |
+ * | `register(id, region, matrix, strokeOpts)` | HitDetector | Add or update a hittable region       |
  * | `unregister(id)`                | HitDetector | Remove a region                                |
  * | `hitTest(x, y)`                 | Array    | Get all regions containing point               |
  * | `getRegionBounds(id)`           | Object   | Get bounding box of region                     |
@@ -41,11 +42,15 @@
  * circlePath.arc(0, 0, 50, 0, Math.PI * 2);
  * hd.register('circle', { type: 'path', path: circlePath }, new DOMMatrix().translateSelf(200, 150));
  *
- * // Stroked line
+ * // Stroked line with matching stroke width
  * const linePath = new Path2D();
  * linePath.moveTo(0, 0);
  * linePath.lineTo(100, 100);
- * hd.register('line-1', { type: 'stroke', path: linePath });
+ * hd.register('line-1', { type: 'stroke', path: linePath }, null, {
+ *   lineWidth: 4,  // Must match the drawn stroke width!
+ *   lineCap: 'round',
+ *   lineJoin: 'round'
+ * });
  *
  * // Event handling (hits ordered back-to-front)
  * hd.on('click', (hits) => {
@@ -137,24 +142,20 @@ export class HitDetector {
   #ctx;
   /** @type {string|number} */
   #canvasId;
-  /** @type {Map<string, { region: object, matrix: DOMMatrix|null, invMatrix: DOMMatrix|null }>} */
+  /** @type {Map<string, { region: object, matrix: DOMMatrix|null, invMatrix: DOMMatrix|null, strokeOpts: object }>} */
   #index = new Map();
   /** @type {Map<string, Function>} */
   #handlers = new Map();
-  /** @type {number} */
-  #strokeWidth = 1;
 
   /**
    * @param {HTMLCanvasElement} canvas — canvas to attach to (typically from ResponsiveCanvas)
    * @param {object} [options]
    * @param {string|number} [options.canvasId] — override canvas ID (auto-detected from canvas.__canvasId if not provided)
-   * @param {number} [options.strokeWidth=1] — stroke width for stroke-based hit testing
    */
-  constructor(canvas, { canvasId, strokeWidth = 1 } = {}) {
+  constructor(canvas, { canvasId } = {}) {
     this.#canvas = canvas;
     this.#ctx = canvas.getContext('2d');
     this.#canvasId = canvasId !== undefined ? canvasId : canvas.__canvasId || null;
-    this.#strokeWidth = strokeWidth;
 
     this.#setupEventListeners();
   }
@@ -173,25 +174,12 @@ export class HitDetector {
     return this.#canvas;
   }
 
-  /** Get the current stroke width for stroke-based hit testing. */
-  get strokeWidth() {
-    return this.#strokeWidth;
-  }
-
-  /**
-   * Set the stroke width for stroke-based hit testing.
-   * Useful for adjusting hit "thickness" on stroked paths.
-   */
-  set strokeWidth(width) {
-    this.#strokeWidth = width;
-  }
-
   /* ================================================================== */
   /*  Registration                                                      */
   /* ================================================================== */
 
   /**
-   * Register a hittable region with optional transformation.
+   * Register a hittable region with optional transformation and stroke options.
    *
    * **Region types:**
    * - `{ type: 'box', x, y, w, h }` — axis-aligned rectangle
@@ -200,14 +188,36 @@ export class HitDetector {
    *
    * If a `matrix` is provided, the point is transformed to local space before testing.
    *
+   * For stroke regions, provide `strokeOpts` matching the drawn stroke state:
+   * - `lineWidth` — stroke width (MUST match the drawn width!)
+   * - `lineCap` — 'butt' | 'round' | 'square'
+   * - `lineJoin` — 'bevel' | 'round' | 'miter'
+   * - `miterLimit` — miter length limit
+   * - `lineDash` — array of dash/gap lengths
+   * - `lineDashOffset` — offset into the dash pattern
+   *
    * @param {string} id — unique identifier
    * @param {object} region — region descriptor
    * @param {DOMMatrix} [matrix] — optional transform matrix
+   * @param {object} [strokeOpts] — optional stroke options for 'stroke' regions
    * @returns {HitDetector} — for method chaining
+   *
+   * @example
+   * ```js
+   * // Stroked path with matching stroke properties
+   * const linePath = new Path2D();
+   * linePath.moveTo(0, 0);
+   * linePath.lineTo(100, 100);
+   * hd.register('my-line', { type: 'stroke', path: linePath }, null, {
+   *   lineWidth: 4,
+   *   lineCap: 'round',
+   *   lineJoin: 'round'
+   * });
+   * ```
    */
-  register(id, region, matrix = null) {
+  register(id, region, matrix = null, strokeOpts = {}) {
     const invMatrix = matrix ? invertMatrix(matrix) : null;
-    this.#index.set(id, { region, matrix, invMatrix });
+    this.#index.set(id, { region, matrix, invMatrix, strokeOpts });
     return this;
   }
 
@@ -250,7 +260,7 @@ export class HitDetector {
     const adjustedX = worldX / zoomScale;
     const adjustedY = worldY / zoomScale;
 
-    for (const [id, { region, matrix, invMatrix }] of this.#index) {
+    for (const [id, { region, matrix, invMatrix, strokeOpts }] of this.#index) {
       let localX = adjustedX;
       let localY = adjustedY;
 
@@ -261,7 +271,7 @@ export class HitDetector {
         localY = transformed.y;
       }
 
-      if (this.#testRegion(region, localX, localY)) {
+      if (this.#testRegion(region, localX, localY, strokeOpts)) {
         hits.push({ id, region, matrix, canvasId: this.#canvasId });
       }
     }
@@ -303,16 +313,45 @@ export class HitDetector {
    * Internal: test if point is inside a region.
    * @private
    */
-  #testRegion(region, px, py) {
+  #testRegion(region, px, py, strokeOpts = {}) {
     if (region.type === 'box') {
       return pointInBox(px, py, region.x, region.y, region.w, region.h);
     } else if (region.type === 'path') {
       return this.#ctx.isPointInPath(region.path, px, py);
     } else if (region.type === 'stroke') {
-      this.#ctx.lineWidth = this.#strokeWidth;
+      // Apply stroke state before testing
+      this.#applyStrokeState(strokeOpts);
       return this.#ctx.isPointInStroke(region.path, px, py);
     }
     return false;
+  }
+
+  /**
+   * Internal: apply stroke state to context.
+   * @private
+   */
+  #applyStrokeState(strokeOpts) {
+    // Apply lineWidth (critical!)
+    if (strokeOpts.lineWidth !== undefined) {
+      this.#ctx.lineWidth = strokeOpts.lineWidth;
+    }
+
+    // Apply line styling options
+    if (strokeOpts.lineCap !== undefined) {
+      this.#ctx.lineCap = strokeOpts.lineCap;
+    }
+    if (strokeOpts.lineJoin !== undefined) {
+      this.#ctx.lineJoin = strokeOpts.lineJoin;
+    }
+    if (strokeOpts.miterLimit !== undefined) {
+      this.#ctx.miterLimit = strokeOpts.miterLimit;
+    }
+    if (strokeOpts.lineDash !== undefined) {
+      this.#ctx.setLineDash(strokeOpts.lineDash);
+    }
+    if (strokeOpts.lineDashOffset !== undefined) {
+      this.#ctx.lineDashOffset = strokeOpts.lineDashOffset;
+    }
   }
 
   /* ================================================================== */
