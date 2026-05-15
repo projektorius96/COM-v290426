@@ -23,17 +23,15 @@ App
     });
 
     const lineDetector = new HitDetector(lineLayer.canvas);
-    const linePath = new Path2D();
-    linePath.moveTo(0, 0);
-    linePath.lineTo(360, 360);
 
     lineDetector.register('line-hitbox',
-        { type: 'stroke', path: linePath },
+        { type: 'stroke', path: new Path2D },
         null,
         { lineWidth: 4, lineCap: 'round', lineJoin: 'round' }  // ← Match the drawn state!
     );
 
     lineDetector.on('click', (hits) => {
+        /* console.log('Line clicked:', lineDetector.canvas.remove()); */// [PASSED]
         console.log('Line clicked:', hits);
     });
 
