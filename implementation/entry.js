@@ -13,14 +13,14 @@ App
 
     // Line layer
     const lineLayer = new Layer({ stage, gridConfig: userConfig.grid });
-    Views.Line.draw({
-        container: lineLayer,
-        options: {
-            points: [...setRange(0, 1, 90 * 4).map((coord) => (coord = { x: coord, y: coord }))],
-            color: COLOR.green,
-            lineWidth: 4  // ← Remember this value!
-        }
-    });
+        Views.Line.draw({
+            container: lineLayer,
+            options: {
+                points: [...setRange(0, 1, 90 * 4).map((coord) => (coord = { x: coord, y: coord }))],
+                color: COLOR.green,
+                lineWidth: 4  // ← Remember this value!
+            }
+        });
 
     const lineDetector = new HitDetector(lineLayer.canvas);
 
@@ -30,9 +30,27 @@ App
         { lineWidth: 4, lineCap: 'round', lineJoin: 'round' }  // ← Match the drawn state!
     );
 
+    let isClicked = false;
     lineDetector.on('click', (hits) => {
-        /* console.log('Line clicked:', lineDetector.canvas.remove()); */// [PASSED]
-        console.log('Line clicked:', hits);
+
+        isClicked = !isClicked;
+
+        const { width, height } = lineLayer.canvas;
+            lineLayer.ctx.resetTransform();
+            lineLayer.ctx.clearRect(0, 0, width, height);
+            
+            /**
+             * @override Views.Line.draw
+             */
+            Views.Line.draw({
+                container: lineLayer,
+                options: {
+                    points: [...setRange(0, 1, 90 * 4).map((coord) => (coord = { x: coord, y: coord }))],
+                    color: ( isClicked ? COLOR.magenta : COLOR.green  ),
+                    lineWidth: 4  // ← Remember this value!
+                }
+            });
+
     });
 
 });
