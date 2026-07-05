@@ -2,7 +2,7 @@ import { degToRad } from "../utils.js";
 
 export class Line {
 
-    static draw({container, options = { points: [], color: 'grey', lineWidth: 2 }}) {
+    static draw({container, options = { points: [], color: 'grey', lineWidth: 2 }, onAfterRender}) {
 
         container.onRender((ctx, grid) => {
 
@@ -24,6 +24,10 @@ export class Line {
                             ctx.lineTo(GRIDCELL_DIM * Math.cos( degToRad(x) ), GRIDCELL_DIM * Math.sin( degToRad(y) ));
                         ctx.stroke();
                 })
+            }
+
+            if (typeof onAfterRender === 'function') {
+                onAfterRender(ctx, grid);
             }
 
         });
