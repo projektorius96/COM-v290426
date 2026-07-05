@@ -5,6 +5,8 @@ import Views from './views/index.js';
 
 export default function ({Layer, HitDetector}) {
 
+const { ID, COLOR } = PRINT;
+
 App
 .init({
     container: document.getElementById(ID.app)
@@ -80,5 +82,3 @@ App
 });
     
 }
-
-const { ID, COLOR } = PRINT;
