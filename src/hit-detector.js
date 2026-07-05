@@ -258,7 +258,7 @@ export class HitDetector {
     } else if (wasStroke) {
       // Region type changed away from stroke — release its pick color
       this.#releaseColor(id);
-      this.#strokeCount = Math.max(0, this.#strokeCount - 1);
+      this.#strokeCount--;
       this.#pickDirty = this.#strokeCount > 0;
     }
 
@@ -274,7 +274,7 @@ export class HitDetector {
     const entry = this.#index.get(id);
     if (entry?.region?.type === 'stroke') {
       this.#releaseColor(id);
-      this.#strokeCount = Math.max(0, this.#strokeCount - 1);
+      this.#strokeCount--;
       this.#pickDirty = true;
     }
     this.#index.delete(id);
@@ -325,7 +325,9 @@ export class HitDetector {
     for (const [id, { region, matrix, invMatrix, strokeOpts }] of this.#index) {
       if (region.type === 'stroke') {
         if (strokeHitId === id) {
-          const [r, g, b] = this.#idToColor.get(id);
+          const color = this.#idToColor.get(id);
+          if (!color) continue;
+          const [r, g, b] = color;
           hits.push({ id, region, matrix, canvasId: this.#canvasId, colorKey: `${r},${g},${b}` });
         }
         continue;
