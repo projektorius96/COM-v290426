@@ -2,16 +2,12 @@
 
 > **NOTE**: Herein "COM" stands for Canvas Object Model!
 
----
+### Development environment
 
-This repo is "unsyched" (ejected) fork of [html-in-canvas](https://github.com/projektorius96/html-in-canvas)
-
----
-
-> **NOTE**: _The fate of this document remains unknown (hence "all is experimental")!_
+> Make sure you got the latest stable [`Node.js`](https://nodejs.org/en/download), once you're set, clone this repo and simply run `npm ci` command on your active terminal in your project's root. Happy coding!
 
 ---
 
-#### Relevant
+### Credits
 
-- [HTML-in-canvas](https://html-in-canvas.dev/)
+> Made with ♥ by [**projektorius96**](https://github.com/projektorius96) assisted by GitHub Copilot (Pro) | 2026
