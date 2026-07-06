@@ -136,7 +136,7 @@ export class ResponsiveCanvas {
     this.#container.style.padding = '0';
     this.#container.appendChild(this.#canvas);
 
-    this.#ctx = this.#canvas.getContext('2d');
+    this.#ctx = this.#canvas.getContext('2d', {willReadFrequently: true});
 
     this.#resize();
 

@@ -184,7 +184,7 @@ export class HitDetector {
    */
   constructor(canvas, { canvasId } = {}) {
     this.#canvas = canvas;
-    this.#ctx = canvas.getContext('2d');
+    this.#ctx = canvas.getContext('2d', {willReadFrequently: true});
     this.#canvasId = canvasId !== undefined ? canvasId : canvas.__canvasId || null;
 
     this.#setupEventListeners();
@@ -470,7 +470,7 @@ export class HitDetector {
       this.#pickCanvas = (typeof OffscreenCanvas !== 'undefined')
         ? new OffscreenCanvas(w, h)
         : Object.assign(document.createElement('canvas'), { width: w, height: h });
-      this.#pickCtx = this.#pickCanvas.getContext('2d');
+      this.#pickCtx = this.#pickCanvas.getContext('2d', {willReadFrequently: true});
       return true;
     }
     return false;

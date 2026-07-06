@@ -1,21 +1,32 @@
 import { setRange, degToRad, PRINT } from './utils.js';
 import userConfig from './user-config.json' with {type: 'json'};
-import App from './app.js';
+import Stage from './stage.js';
 import Views from './views/index.js';
 
+/**
+ * @implementation
+ * @example - This is where you implement your own rendering logic (implementation entry point)
+ */
 export default function ({Layer, HitDetector}) {
 
-const { ID, COLOR } = PRINT;
+/**
+ * @description USEFUL ALIASED (TYPED) PROXY GETTERS each returning a string.
+ * @example COLOR.red - will print 'red',  where (typeof 'red' === 'string');
+ */
+const { OPTIONS, TYPE, ID, COLOR, UI_EVENT } = PRINT;
 
-App
+Stage
 .init({
     container: document.getElementById(ID.app)
 })
 .on(({ stage }) => {
 
     // Line layer
-    const lineLayer = new Layer({ stage, gridConfig: userConfig.grid });
-    const lineDetector = new HitDetector(lineLayer.canvas);
+    const 
+        lineLayer = new Layer({ stage, gridConfig: userConfig.grid })
+        ,
+        lineDetector = new HitDetector(lineLayer.canvas)
+        ;
 
     /**
      * Build a Path2D that mirrors exactly what Line.draw renders for the current grid.
@@ -41,18 +52,21 @@ App
      * always reflect the current grid dimensions (updated on resize).
      */
     function syncHitRegion(grid) {
+        
         const { path, matrix } = buildLinePath(grid);
         lineDetector.register(
             'line-hitbox',
-            { type: 'stroke', path },
+            { type: TYPE.stroke, path },
             matrix,
-            { lineWidth: 4, lineCap: 'round', lineJoin: 'round' }
+            { lineWidth: 4, lineCap:OPTIONS.round, lineJoin:OPTIONS.round }
         );
+
     }
 
     let isClicked = false;
 
-    function drawLine(color) {
+    function drawLine({color}) {
+
         Views.Line.draw({
             container: lineLayer,
             options: {
@@ -63,20 +77,20 @@ App
             // Called at the end of every render (initial + every resize repaint)
             onAfterRender: (ctx, grid) => syncHitRegion(grid)
         });
+
     }
 
-    drawLine(COLOR.green);
+    drawLine({color: COLOR.green});
 
-    lineDetector.on('click', (hits) => {
+    lineDetector.on(UI_EVENT.click, (hits) => {
         if (hits.length === 0) return; // click missed all registered stroke shapes
 
         isClicked = !isClicked;
-
         const { width, height } = lineLayer.canvas;
             lineLayer.ctx.resetTransform();
             lineLayer.ctx.clearRect(0, 0, width, height);
             
-            drawLine( isClicked ? COLOR.magenta : COLOR.green );
+            drawLine({ color: (isClicked ? COLOR.magenta : COLOR.green) });
     });
 
 });

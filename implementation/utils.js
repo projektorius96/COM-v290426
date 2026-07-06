@@ -51,7 +51,7 @@ export function degToRad(deg) {
 
 /* === MISC. === */
 
-const Print = new Proxy(
+export const Print = new Proxy(
     Object.create(null)
     ,
     {
@@ -65,7 +65,11 @@ export const PRINT = Object.assign(
     Object.create(null)
     ,
     {
+        [Print.UI_EVENT] : Print,
+        [Print.OPTIONS] : Print,
         [Print.COLOR] : Print,
+        [Print.TYPE] : Print,
+        [Print.NAME] : Print,
         [Print.ID] : Print,
     }
 )
