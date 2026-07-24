@@ -14,6 +14,9 @@
  * By default, that ID is bound globally to `canvas.id`, stored as `canvas.__canvasId`,
  * and also accessible via the `id` getter.
  *
+ * NEW: When global binding is enabled, DOM-resolved canvas elements also expose
+ * read-only bridge getters (`canvas.grid`, `canvas.ctx`, `canvas.visualViewport`).
+ *
  * @example
  * ```js
  * import { ResponsiveCanvas } from './responsive-canvas.js';
@@ -156,13 +159,17 @@ export class ResponsiveCanvas {
   /** @type {object|null} */
   #visualViewport = null;
   /** @type {object} */
+  #globalGridSnapshot = Object.freeze({});
+  /** @type {object|null} */
+  #globalVisualViewportSnapshot = null;
+  /** @type {object} */
   userConfig = {};
 
   /**
    * @param {object} options
    * @param {HTMLElement} options.stage — DOM element that will host the canvas
    * @param {string|number} [options.id] — optional custom ID (normalized to string)
-   * @param {boolean} [options.globalId=true] — when true, bind ID to `canvas.id` for global DOM access
+   * @param {boolean} [options.globalId=true] — when true, bind ID and bridge getters on canvas element for global DOM access
    * @param {object} [options.gridConfig={}] — grid configuration
    * @param {number} [options.gridConfig.scale=20] — number of grid cells that fit across the width
    * @param {string} [options.gridConfig.color='rgba(128,128,128,0.25)'] — grid line color
@@ -191,6 +198,23 @@ export class ResponsiveCanvas {
     this.#canvas = document.createElement('canvas');
     if (globalId) {
       this.#canvas.id = this.#id;
+      Object.defineProperties(this.#canvas, {
+        grid: {
+          configurable: true,
+          enumerable: false,
+          get: () => this.#globalGridSnapshot,
+        },
+        ctx: {
+          configurable: true,
+          enumerable: false,
+          get: () => this.#ctx,
+        },
+        visualViewport: {
+          configurable: true,
+          enumerable: false,
+          get: () => this.#globalVisualViewportSnapshot,
+        },
+      });
     }
     // Store the same ID on the canvas element itself for HitDetector to access
     this.#canvas.__canvasId = this.#id;
@@ -260,6 +284,8 @@ export class ResponsiveCanvas {
       offsetTop: viewport.offsetTop,
     };
 
+    this.#globalVisualViewportSnapshot = Object.freeze({ ...this.#visualViewport });
+
     // GRIDCELL_DIM — the fundamental responsive unit (CSS pixels)
     const GRIDCELL_DIM = cssWidth / toEven(this.#scale);
 
@@ -280,7 +306,12 @@ export class ResponsiveCanvas {
       dpr,
       width: this.#canvas.width,
       height: this.#canvas.height,
-      visualViewport: this.#visualViewport,
+      visualViewport: this.#globalVisualViewportSnapshot,
+    });
+
+    this.#globalGridSnapshot = Object.freeze({
+      ...this.#grid,
+      visualViewport: this.#globalVisualViewportSnapshot,
     });
   }
 
