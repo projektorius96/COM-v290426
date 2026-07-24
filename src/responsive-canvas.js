@@ -10,8 +10,9 @@
  * NEW: Supports visual viewport tracking for mobile pinch-zoom and accurate
  * bounding box calculations across layout and visual coordinate spaces.
  *
- * NEW: Each canvas instance receives an auto-incremented ID for layer identification.
- * The ID is stored as `canvas.__canvasId` and also accessible via the `id` getter.
+ * NEW: Each canvas instance receives an ID for layer identification.
+ * By default, that ID is bound globally to `canvas.id`, stored as `canvas.__canvasId`,
+ * and also accessible via the `id` getter.
  *
  * @example
  * ```js
@@ -22,7 +23,7 @@
  *   gridConfig: { scale: 20 }
  * });
  *
- * console.log(rc.id); // → 1 (auto-incremented)
+ * console.log(rc.id); // → "layer-canvas-1" (auto-generated string ID)
  *
  * rc.onRender((ctx, grid) => {
  *   // grid.GRIDCELL_DIM — responsive unit size in device pixels
@@ -32,6 +33,12 @@
  *   ctx.fillRect(grid.centerX - grid.GRIDCELL_DIM, grid.centerY - grid.GRIDCELL_DIM,
  *                grid.GRIDCELL_DIM * 2, grid.GRIDCELL_DIM * 2);
  * });
+ *
+ * // Opt out of global DOM ID binding (keeps instance getter + __canvasId only)
+ * const localOnly = new ResponsiveCanvas({
+ *   stage: document.getElementById('app'),
+ *   globalId: false
+ * });
  * ```
  */
 
@@ -40,6 +47,60 @@
  * @private
  */
 let canvasIdCounter = 0;
+const AUTO_CANVAS_ID_PREFIX = 'layer-canvas-';
+const allocatedCanvasIds = new Set();
+
+/**
+ * Normalize an ID value to a DOM-safe string value.
+ * @param {string|number} value
+ * @returns {string}
+ */
+function normalizeCanvasId(value) {
+  return String(value);
+}
+
+/**
+ * Create the next deterministic auto-generated canvas ID.
+ * It advances monotonically and skips IDs already present in the current document.
+ * @returns {string}
+ */
+function getNextAutoCanvasId() {
+  let candidate = '';
+  do {
+    canvasIdCounter += 1;
+    candidate = `${AUTO_CANVAS_ID_PREFIX}${canvasIdCounter}`;
+  } while (allocatedCanvasIds.has(candidate) || document.getElementById(candidate));
+  return candidate;
+}
+
+/**
+ * Ensure an ID is unique for this runtime and optionally in the current document.
+ * Reserves and returns the selected ID.
+ * @param {string} id
+ * @param {object} [options]
+ * @param {boolean} [options.checkDom=true]
+ * @returns {string}
+ */
+function reserveUniqueCanvasId(id, { checkDom = true } = {}) {
+  const isTaken = (value) => (
+    allocatedCanvasIds.has(value) || (checkDom && !!document.getElementById(value))
+  );
+
+  if (!isTaken(id)) {
+    allocatedCanvasIds.add(id);
+    return id;
+  }
+
+  let suffix = 2;
+  let candidate = `${id}-${suffix}`;
+  while (isTaken(candidate)) {
+    suffix += 1;
+    candidate = `${id}-${suffix}`;
+  }
+
+  allocatedCanvasIds.add(candidate);
+  return candidate;
+}
 
 /**
  * Force a number to the nearest even integer.
@@ -86,7 +147,7 @@ export class ResponsiveCanvas {
   #container;
   /** @type {number} */
   #scale;
-  /** @type {string|number} */
+  /** @type {string} */
   #id;
   /** @type {Function|null} */
   #renderCallback = null;
@@ -100,15 +161,20 @@ export class ResponsiveCanvas {
   /**
    * @param {object} options
    * @param {HTMLElement} options.stage — DOM element that will host the canvas
-   * @param {string|number} [options.id] — optional custom ID (auto-incremented if not provided)
+   * @param {string|number} [options.id] — optional custom ID (normalized to string)
+   * @param {boolean} [options.globalId=true] — when true, bind ID to `canvas.id` for global DOM access
    * @param {object} [options.gridConfig={}] — grid configuration
    * @param {number} [options.gridConfig.scale=20] — number of grid cells that fit across the width
    * @param {string} [options.gridConfig.color='rgba(128,128,128,0.25)'] — grid line color
    * @param {boolean} [options.gridConfig.dotted=false] — whether grid is dotted
    * @param {number} [options.gridConfig.lineWidth=1] — grid line width
    */
-  constructor({ stage: container, id = undefined, gridConfig = {} }) {
-    this.#id = id !== undefined ? id : ++canvasIdCounter;
+  constructor({ stage: container, id = undefined, globalId = true, gridConfig = {} }) {
+    const requestedId = id !== undefined
+      ? normalizeCanvasId(id)
+      : getNextAutoCanvasId();
+
+    this.#id = reserveUniqueCanvasId(requestedId, { checkDom: globalId });
 
     this.userConfig = {
       grid: {
@@ -123,7 +189,10 @@ export class ResponsiveCanvas {
     this.#scale = this.userConfig.grid.scale;
 
     this.#canvas = document.createElement('canvas');
-    // Store the ID on the canvas element itself for HitDetector to access
+    if (globalId) {
+      this.#canvas.id = this.#id;
+    }
+    // Store the same ID on the canvas element itself for HitDetector to access
     this.#canvas.__canvasId = this.#id;
 
     this.#canvas.style.display = 'block';
@@ -230,7 +299,7 @@ export class ResponsiveCanvas {
   /*  Public API                                                        */
   /* ------------------------------------------------------------------ */
 
-  /** The unique ID for this canvas instance. */
+  /** The unique (string) ID for this canvas instance. */
   get id() {
     return this.#id;
   }
