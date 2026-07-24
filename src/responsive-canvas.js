@@ -15,8 +15,7 @@
  * and also accessible via the `id` getter.
  *
  * NEW: When global binding is enabled, DOM-resolved canvas elements also expose
- * read-only bridge getters (`canvas.grid`, `canvas.ctx`, `canvas.visualViewport`)
- * and the owning instance (`canvas.__responsiveCanvas`).
+ * read-only bridge getters (`canvas.grid`, `canvas.ctx`, `canvas.visualViewport`).
  *
  * @example
  * ```js
@@ -156,7 +155,7 @@ export class ResponsiveCanvas {
   /** @type {Function|null} */
   #renderCallback = null;
   /** @type {{ GRIDCELL_DIM: number, centerX: number, centerY: number, cols: number, rows: number, dpr: number, visualViewport: object }} */
-  #grid = Object.freeze({});
+  #grid = {};
   /** @type {object|null} */
   #visualViewport = null;
   /** @type {object} */
@@ -210,11 +209,6 @@ export class ResponsiveCanvas {
           configurable: true,
           enumerable: false,
           get: () => this.#visualViewport,
-        },
-        __responsiveCanvas: {
-          configurable: true,
-          enumerable: false,
-          get: () => this,
         },
       });
     }
@@ -278,13 +272,13 @@ export class ResponsiveCanvas {
     const cssHeight = viewport.height;
 
     // Store visual viewport info for public access
-    this.#visualViewport = {
+    this.#visualViewport = Object.freeze({
       width: viewport.width,
       height: viewport.height,
       scale: viewport.scale,
       offsetLeft: viewport.offsetLeft,
       offsetTop: viewport.offsetTop,
-    };
+    });
 
     // GRIDCELL_DIM — the fundamental responsive unit (CSS pixels)
     const GRIDCELL_DIM = cssWidth / toEven(this.#scale);
