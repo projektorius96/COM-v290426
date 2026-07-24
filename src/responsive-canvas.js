@@ -198,7 +198,10 @@ export class ResponsiveCanvas {
         grid: {
           configurable: true,
           enumerable: false,
-          get: () => this.#grid,
+          get: () => Object.freeze({
+            ...this.#grid,
+            visualViewport: Object.freeze({ ...this.#grid.visualViewport }),
+          }),
         },
         ctx: {
           configurable: true,
@@ -208,7 +211,9 @@ export class ResponsiveCanvas {
         visualViewport: {
           configurable: true,
           enumerable: false,
-          get: () => this.#visualViewport,
+          get: () => this.#visualViewport
+            ? Object.freeze({ ...this.#visualViewport })
+            : null,
         },
       });
     }
