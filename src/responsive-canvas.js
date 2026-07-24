@@ -272,13 +272,15 @@ export class ResponsiveCanvas {
     const cssHeight = viewport.height;
 
     // Store visual viewport info for public access
-    this.#visualViewport = Object.freeze({
+    this.#visualViewport = {
       width: viewport.width,
       height: viewport.height,
       scale: viewport.scale,
       offsetLeft: viewport.offsetLeft,
       offsetTop: viewport.offsetTop,
-    });
+    };
+
+    const frozenVisualViewport = Object.freeze({ ...this.#visualViewport });
 
     // GRIDCELL_DIM — the fundamental responsive unit (CSS pixels)
     const GRIDCELL_DIM = cssWidth / toEven(this.#scale);
@@ -300,7 +302,7 @@ export class ResponsiveCanvas {
       dpr,
       width: this.#canvas.width,
       height: this.#canvas.height,
-      visualViewport: this.#visualViewport,
+      visualViewport: frozenVisualViewport,
     });
   }
 
