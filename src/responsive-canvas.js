@@ -159,6 +159,10 @@ export class ResponsiveCanvas {
   /** @type {object|null} */
   #visualViewport = null;
   /** @type {object} */
+  #globalGridSnapshot = Object.freeze({});
+  /** @type {object|null} */
+  #globalVisualViewportSnapshot = null;
+  /** @type {object} */
   userConfig = {};
 
   /**
@@ -198,10 +202,7 @@ export class ResponsiveCanvas {
         grid: {
           configurable: true,
           enumerable: false,
-          get: () => Object.freeze({
-            ...this.#grid,
-            visualViewport: Object.freeze({ ...this.#grid.visualViewport }),
-          }),
+          get: () => this.#globalGridSnapshot,
         },
         ctx: {
           configurable: true,
@@ -211,9 +212,7 @@ export class ResponsiveCanvas {
         visualViewport: {
           configurable: true,
           enumerable: false,
-          get: () => this.#visualViewport
-            ? Object.freeze({ ...this.#visualViewport })
-            : null,
+          get: () => this.#globalVisualViewportSnapshot,
         },
       });
     }
@@ -285,7 +284,7 @@ export class ResponsiveCanvas {
       offsetTop: viewport.offsetTop,
     };
 
-    const frozenVisualViewport = Object.freeze({ ...this.#visualViewport });
+    this.#globalVisualViewportSnapshot = Object.freeze({ ...this.#visualViewport });
 
     // GRIDCELL_DIM — the fundamental responsive unit (CSS pixels)
     const GRIDCELL_DIM = cssWidth / toEven(this.#scale);
@@ -307,7 +306,12 @@ export class ResponsiveCanvas {
       dpr,
       width: this.#canvas.width,
       height: this.#canvas.height,
-      visualViewport: frozenVisualViewport,
+      visualViewport: this.#globalVisualViewportSnapshot,
+    });
+
+    this.#globalGridSnapshot = Object.freeze({
+      ...this.#grid,
+      visualViewport: this.#globalVisualViewportSnapshot,
     });
   }
 
