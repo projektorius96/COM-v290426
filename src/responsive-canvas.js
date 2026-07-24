@@ -156,7 +156,7 @@ export class ResponsiveCanvas {
   /** @type {Function|null} */
   #renderCallback = null;
   /** @type {{ GRIDCELL_DIM: number, centerX: number, centerY: number, cols: number, rows: number, dpr: number, visualViewport: object }} */
-  #grid = {};
+  #grid = Object.freeze({});
   /** @type {object|null} */
   #visualViewport = null;
   /** @type {object} */
