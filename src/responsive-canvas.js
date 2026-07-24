@@ -48,6 +48,7 @@
  */
 let canvasIdCounter = 0;
 const AUTO_CANVAS_ID_PREFIX = 'layer-canvas-';
+const allocatedCanvasIds = new Set();
 
 /**
  * Normalize an ID value to a DOM-safe string value.
@@ -68,23 +69,36 @@ function getNextAutoCanvasId() {
   do {
     canvasIdCounter += 1;
     candidate = `${AUTO_CANVAS_ID_PREFIX}${canvasIdCounter}`;
-  } while (document.getElementById(candidate));
+  } while (allocatedCanvasIds.has(candidate) || document.getElementById(candidate));
   return candidate;
 }
 
 /**
- * Ensure a DOM id is unique in-document by adding a deterministic numeric suffix when needed.
+ * Ensure an ID is unique for this runtime and optionally in the current document.
+ * Reserves and returns the selected ID.
  * @param {string} id
+ * @param {object} [options]
+ * @param {boolean} [options.checkDom=true]
  * @returns {string}
  */
-function ensureUniqueDomId(id) {
-  if (!document.getElementById(id)) return id;
+function reserveUniqueCanvasId(id, { checkDom = true } = {}) {
+  const isTaken = (value) => (
+    allocatedCanvasIds.has(value) || (checkDom && !!document.getElementById(value))
+  );
+
+  if (!isTaken(id)) {
+    allocatedCanvasIds.add(id);
+    return id;
+  }
+
   let suffix = 2;
   let candidate = `${id}-${suffix}`;
-  while (document.getElementById(candidate)) {
+  while (isTaken(candidate)) {
     suffix += 1;
     candidate = `${id}-${suffix}`;
   }
+
+  allocatedCanvasIds.add(candidate);
   return candidate;
 }
 
@@ -160,7 +174,7 @@ export class ResponsiveCanvas {
       ? normalizeCanvasId(id)
       : getNextAutoCanvasId();
 
-    this.#id = globalId ? ensureUniqueDomId(requestedId) : requestedId;
+    this.#id = reserveUniqueCanvasId(requestedId, { checkDom: globalId });
 
     this.userConfig = {
       grid: {
