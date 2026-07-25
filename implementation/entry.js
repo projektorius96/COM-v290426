@@ -1,7 +1,8 @@
-import { setRange, degToRad, PRINT } from './utils.js';
+import { setRange, PRINT } from './utils.js';
 import UserConfig from './user-config.json' with {type: 'json'};
 import Stage from './stage.js';
 import Views, { Helpers } from './views/index.js';
+import Counter from './counter.js';
 
 /**
  * @implementation
@@ -13,7 +14,7 @@ export default function ({Layer, HitDetector}) {
      * @description USEFUL ALIASED (TYPED) PROXY GETTERS each returning a string.
      * @example COLOR.red - will print 'red',  where (typeof 'red' === 'string');
      */
-    const { OPTIONS, TYPE, ID, COLOR, UI_EVENT } = PRINT;
+    const { ID, COLOR, UI_EVENT } = PRINT;
     
     Stage
     .init({
@@ -31,51 +32,48 @@ export default function ({Layer, HitDetector}) {
             lineDetector = new HitDetector(lineLayer.canvas)
             ;
 
-        function drawLine({color, points, lineWidth}) {
+        function drawLine(drawState) {
 
             Views.Line.draw({
                 container: lineLayer,
-                options: {
-                    points: [...setRange(...points).map((coord) => (coord = { x: coord, y: coord }))],
-                    color,
-                    lineWidth,
-                },
+                options: drawState,
                 // Called at the end of every render (initial + every resize repaint)
-                onAfterRender: (ctx, grid) => Views.Line.syncHitRegion({grid, points, lineWidth, deps: { lineDetector, utils: { PRINT, setRange } }})
+                onAfterRender: (ctx, grid, points) => Views.Line.syncHitRegion({
+                    grid,
+                    points,
+                    lineWidth: drawState.lineWidth,
+                    deps: { lineDetector, utils: { PRINT, setRange } }
+                })
             });
 
         }
 
-        // INITIAL *CALL
-        const sharedPoints = [...Helpers.QUADRANT.q3]
-        drawLine({
-            points: sharedPoints
-            , 
-            color: COLOR.magenta
-            , 
-            lineWidth: 4
+        const pointRange = [...Helpers.QUADRANT.q3];
+        const allPoints = setRange(...pointRange).map((coord) => ({ x: coord, y: coord }));
+        const drawState = {
+            points: [],
+            color: COLOR.magenta,
+            lineWidth: 4,
+        };
+
+        drawLine(drawState);
+
+        Counter({
+            from: 0,
+            to: allPoints.length + 1,
+            duration: 10,
+            callback({ count }) {
+                drawState.points = allPoints.slice(0, count);
+                lineLayer.render();
+            },
         });
 
         lineDetector.on(UI_EVENT.click, (hits) => {
             if (hits.length === 0) return; // click missed all registered stroke shapes
 
             isClicked = !isClicked;
-            const { width, height, ctx: context } = document.getElementById(ID.layer_top);
-                context.resetTransform();
-                context.clearRect(0, 0, width, height);
-                
-                // RE-*CALL
-                drawLine({
-                    points: sharedPoints
-                    ,
-                    lineWidth: 4 
-                    ,
-
-                    /**
-                     * @override
-                     */
-                    color: (isClicked ? COLOR.blue : COLOR.magenta)
-                });
+            drawState.color = (isClicked ? COLOR.blue : COLOR.magenta);
+            lineLayer.render();
         });
 
     });
