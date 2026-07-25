@@ -50,7 +50,7 @@
  * @private
  */
 let canvasIdCounter = 0;
-const AUTO_CANVAS_ID_PREFIX = 'layer-canvas-';
+const AUTO_CANVAS_ID_PREFIX = 'layer-';
 const allocatedCanvasIds = new Set();
 
 /**
