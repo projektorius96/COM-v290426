@@ -2,6 +2,7 @@ import { setRange, degToRad, PRINT } from './utils.js';
 import UserConfig from './user-config.json' with {type: 'json'};
 import Stage from './stage.js';
 import Views, { Helpers } from './views/index.js';
+import Counter from './counter.js';
 
 /**
  * @implementation
