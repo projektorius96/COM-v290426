@@ -1,10 +1,23 @@
-import { degToRad } from "../utils.js";
+import { degToRad, setRange } from "../utils.js";
+
+function normalizePoints(points = []) {
+    if (!Array.isArray(points) || points.length === 0) {
+        return [];
+    }
+
+    if (typeof points[0] === 'object') {
+        return points;
+    }
+
+    return setRange(...points).map((coord) => ({ x: coord, y: coord }));
+}
 
 export class Line {
 
     static draw({container, options = { points: [], color: 'grey', lineWidth: 2 }, onAfterRender}) {
 
         container.onRender((ctx, grid) => {
+            const points = normalizePoints(options.points);
 
             // Draw reference grid (optional)
             container.drawGrid();
@@ -17,8 +30,8 @@ export class Line {
             ctx.lineWidth = options.lineWidth;
 
             ctx.translate(centerX, centerY);
-            if (options.points?.length > 0) {
-                options.points.forEach(({x, y}, i)=>{
+            if (points.length > 0) {
+                points.forEach(({x, y})=>{
                     ctx.beginPath();
                             ctx.moveTo(0, 0);
                             ctx.lineTo(GRIDCELL_DIM * Math.cos( degToRad(x) ), GRIDCELL_DIM * Math.sin( degToRad(y) ));
@@ -27,7 +40,7 @@ export class Line {
             }
 
             if (typeof onAfterRender === 'function') {
-                onAfterRender(ctx, grid);
+                onAfterRender(ctx, grid, points);
             }
 
         });
@@ -45,11 +58,11 @@ export class Line {
 function buildLinePath({grid, points, lineWidth, utils}) {
     const { centerX, centerY, GRIDCELL_DIM } = grid;
     const path = new Path2D();
-    utils.setRange(...points).forEach((coord) => {
+    normalizePoints(points).forEach(({ x, y }) => {
         path.moveTo(0, 0);
         path.lineTo(
-            GRIDCELL_DIM * Math.cos(degToRad(coord)),
-            GRIDCELL_DIM * Math.sin(degToRad(coord))
+            GRIDCELL_DIM * Math.cos(degToRad(x)),
+            GRIDCELL_DIM * Math.sin(degToRad(y))
         );
     });
     return { path, matrix: new DOMMatrix().translateSelf(centerX, centerY) };
@@ -68,6 +81,11 @@ function syncHitRegion({grid, points, lineWidth, deps}) {
         ,
         { TYPE, OPTIONS } = PRINT 
         ;
+
+    if (normalizePoints(points).length === 0) {
+        lineDetector.unregister('line-hitbox');
+        return;
+    }
     
     const { path, matrix } = buildLinePath({grid, points, utils});
     lineDetector.register(

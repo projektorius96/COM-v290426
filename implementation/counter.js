@@ -36,11 +36,13 @@ export default function Counter({
                 this.style.cssText = 'position: absolute;';
             }
         });
-
-        document.body.appendChild(new (customElements.get(id))());
     }
-
-    const target = document.body.children[id];
+    
+    let target = document.getElementById(id);
+    if (!target) {
+        target = new (customElements.get(id))();
+        document.body.appendChild(target);
+    }
 
     const effect = new KeyframeEffect(
         target,
