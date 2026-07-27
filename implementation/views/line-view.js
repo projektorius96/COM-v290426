@@ -19,6 +19,9 @@ export class Line {
         container.onRender((ctx, grid) => {
             const points = normalizePoints(options.points);
 
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+
             // Draw reference grid (optional)
             container.drawGrid();
 
@@ -38,6 +41,8 @@ export class Line {
                         ctx.stroke();
                 })
             }
+
+            ctx.restore();
 
             if (typeof onAfterRender === 'function') {
                 onAfterRender(ctx, grid, points);
