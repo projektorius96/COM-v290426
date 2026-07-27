@@ -22,58 +22,66 @@ export default function ({Layer, HitDetector}) {
     })
     .on(({ stage }) => {
 
-        // Hit detection state
+        // *"Hit detection" state
         let isClicked = false;
 
-        // Line layer
+        // Instance of Line layer *"Hit detection"
         const 
             lineLayer = new Layer({ stage, id: ID.layer_top, gridConfig: UserConfig.grid })
             ,
             lineDetector = new HitDetector(lineLayer.canvas)
             ;
 
-        function drawLine(drawState) {
+        function drawLine() {
+
+            const options = {
+                points: [],
+                color: COLOR.magenta,
+                lineWidth: 4,
+                opacity: 0.1
+            }
 
             Views.Line.draw({
                 container: lineLayer,
-                options: drawState,
+                options,
                 // Called at the end of every render (initial + every resize repaint)
-                onAfterRender: (ctx, grid, points) => Views.Line.syncHitRegion({
-                    grid,
-                    points,
-                    lineWidth: drawState.lineWidth,
-                    deps: { lineDetector, utils: { PRINT, setRange } }
-                })
+                onAfterRender: ({ctx, grid, points, lineWidth}) => {
+                    Views.Line.syncHitRegion({
+                        grid,
+                        points,
+                        lineWidth,
+                        deps: { lineDetector, utils: { PRINT, setRange } }
+                    });
+                }
             });
+
+            return options;
 
         }
 
-        const pointRange = [...Helpers.QUADRANT.q3];
-        const allPoints = setRange(...pointRange).map((coord) => ({ x: coord, y: coord }));
-        const drawState = {
-            points: [],
-            color: COLOR.magenta,
-            lineWidth: 4,
-        };
-
-        drawLine(drawState);
+        const 
+            allPoints = setRange(...Helpers.QUADRANT.Q4).map((coord) => ({ x: coord, y: coord }))
+            ,
+            drawState = drawLine()
+            ;
 
         Counter({
             from: 0,
             to: allPoints.length + 1,
             duration: 10,
-            callback({ count }) {
+            callback({ count }) {                
                 drawState.points = allPoints.slice(0, count);
-                lineLayer.render();
-            },
+                lineLayer.render(); // DEV_NOTE # if you've changed anything in {drawState}, you must call .render() on your target {Layer} manually!
+            }
         });
 
         lineDetector.on(UI_EVENT.click, (hits) => {
             if (hits.length === 0) return; // click missed all registered stroke shapes
-
+                
             isClicked = !isClicked;
             drawState.color = (isClicked ? COLOR.blue : COLOR.magenta);
-            lineLayer.render();
+            lineLayer.render(); // DEV_NOTE # if you've changed anything in {drawState}, you must call .render() on your target {Layer} manually!
+            
         });
 
     });
