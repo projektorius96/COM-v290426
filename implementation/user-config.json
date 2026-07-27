@@ -1,5 +1,5 @@
 {
-    "grid" : { 
+    "grid" : {
         "scale": 20,
         "color" : "blue",
         "dotted" : true, 

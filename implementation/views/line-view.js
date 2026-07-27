@@ -14,7 +14,7 @@ function normalizePoints(points = []) {
 
 export class Line {
 
-    static draw({container, options = { points: [], color: 'grey', lineWidth: 2 }, onAfterRender}) {
+    static draw({container, options = { points: [], opacity: 1, color: 'grey', lineWidth: 2 }, onAfterRender}) {
 
         container.onRender((ctx, grid) => {
             const points = normalizePoints(options.points);
@@ -31,6 +31,8 @@ export class Line {
             // // Draw the square using line paths
             ctx.strokeStyle = options.color;
             ctx.lineWidth = options.lineWidth;
+            
+            ctx.globalAlpha = options.opacity;
 
             ctx.translate(centerX, centerY);
             if (points.length > 0) {
@@ -45,7 +47,7 @@ export class Line {
             ctx.restore();
 
             if (typeof onAfterRender === 'function') {
-                onAfterRender(ctx, grid, points);
+                onAfterRender({ctx, grid, ...options});
             }
 
         });
