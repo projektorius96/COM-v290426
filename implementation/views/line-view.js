@@ -14,7 +14,7 @@ function normalizePoints(points = []) {
 
 export class Line {
 
-    static draw({container, options = { scale, points, opacity, color, lineWidth }, onAfterRender}) {
+    static draw({container, options, onAfterRender}) {
 
         container.onRender((ctx, grid) => {
             const points = normalizePoints(options.points);
@@ -23,29 +23,22 @@ export class Line {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
 
             // Draw reference grid (optional)
-            container.drawGrid();
+            if((options.showGrid ?? false)) container.drawGrid();
 
             // Draw a square using PATH PRIMITIVES (4 lines)
             const { centerX, centerY, GRIDCELL_DIM } = grid;
 
             // // Draw the square using line paths
-            if (options.color === undefined) options.color = 'grey';
+            ctx.strokeStyle = (options.color ?? 'grey');
+            ctx.lineWidth =   (options.lineWidth ?? 2);
             
-            ctx.strokeStyle = options.color;
-            
-            if (options.lineWidth === undefined) options.lineWidth = 2;
-            
-            ctx.lineWidth = options.lineWidth;
-            
-            if (options.opacity === undefined) options.opacity = 1;
-            ctx.globalAlpha = options.opacity;
+            ctx.opacity = (options.opacity ?? 1);
+                ctx.globalAlpha = options.opacity;
 
             ctx.translate(centerX, centerY);
-            if (points.length > 0) {
-                points.forEach(({x, y})=>{
-                    if (options.scale === undefined) options.scale = [1, 1];
-                    const [SCALE_X, SCALE_Y] = options.scale;
-
+            if (options.points.length > 0) {
+                options.points.forEach(({x, y})=>{
+                    const [SCALE_X, SCALE_Y] = (options.scale ?? [1, 1]);
                     ctx.beginPath();
                         ctx.moveTo(0, 0);
                         ctx.lineTo(SCALE_X * GRIDCELL_DIM * Math.cos( degToRad(x) ), SCALE_Y * GRIDCELL_DIM * Math.sin( degToRad(y) ));
@@ -56,7 +49,7 @@ export class Line {
             ctx.restore();
 
             if (typeof onAfterRender === 'function') {
-                onAfterRender({ctx, grid, ...options});
+                onAfterRender({container, options});
             }
 
         });

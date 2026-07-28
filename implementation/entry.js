@@ -24,27 +24,37 @@ export default function ({Layer, HitDetector}) {
 
         const lineLayer = Reflect.construct(Layer, [{ stage, gridConfig: UserConfig.grid }]);
 
-        function drawLine() {
+        function drawLine(overridenOptions = {}) {
             
             // Draw Japan flag
             Views.Line.draw({
                 container: lineLayer,
                 options: {
+                    showGrid: !true,
                     points: [...setRange(...Helpers.QUADRANT.Q4).map((coords)=> coords = {x: coords, y: coords} )],
                     scale: [2, 2],
                     color: COLOR.red,
-                    lineWidth: 20,
-                    opacity: 1
+                    lineWidth: 3,
+                    opacity: 1,
+                    ...overridenOptions
                 },
                 // Called at the end of every render (initial + every resize repaint)
-                onAfterRender: ({ctx, grid, points, /* other {options} params */}) => {
-                    /* console.log(grid); */// # [PASSING]
+                onAfterRender: ({container, options}) => {
+                    // Do some finalization work here,.. 
+                    // ..except calling {container.render()} itself - that would halt your runtime due to recursive calls!
                 }
             });
 
         }
+        drawLine(null);
 
-        drawLine();
+        lineLayer.onRender(( context, grid )=>{
+
+            /**
+             * @override
+             */
+            drawLine({color: COLOR.orange});
+        })
 
     });
     
