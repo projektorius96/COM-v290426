@@ -2,7 +2,7 @@ import { setRange, PRINT } from './utils.js';
 import UserConfig from './user-config.json' with {type: 'json'};
 import Stage from './stage.js';
 import Views, { Helpers } from './views/index.js';
-/* import Counter from './counter.js'; */
+import Counter from './counter.js';
 
 /**
  * @implementation
@@ -30,8 +30,8 @@ export default function ({Layer, HitDetector}) {
             Views.Line.draw({
                 container: lineLayer,
                 options: {
-                    showGrid: !true,
-                    points: [...setRange(...Helpers.QUADRANT.Q4).map((coords)=> coords = {x: coords, y: coords} )],
+                    showGrid: true,
+                    points: [],
                     scale: [2, 2],
                     color: COLOR.red,
                     lineWidth: 3,
@@ -50,10 +50,28 @@ export default function ({Layer, HitDetector}) {
 
         lineLayer.onRender(( context, grid )=>{
 
-            /**
-             * @override
-             */
-            drawLine({color: COLOR.orange});
+            const
+                allPoints = setRange(...Helpers.QUADRANT.Q4).map((coord) => ({ x: coord, y: coord }))
+                ,
+                to = (allPoints.length + 1)
+                ;
+
+            Counter({
+                from: 0,
+                to,
+                duration: 1,
+                callback({ count }) {
+
+                    /**
+                     * @override
+                     */
+                    drawLine({
+                        points: [...allPoints.slice(0, count)]
+                    });
+
+                }
+            });
+
         })
 
     });
