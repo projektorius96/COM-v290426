@@ -22,19 +22,12 @@ export default function ({Layer, HitDetector}) {
     })
     .on(({ stage }) => {
 
-        Reflect
-        .construct(Layer, [{ id: ID.grid, stage, gridConfig: UserConfig.grid }])
-        .onRender(( context, grid )=>{
-
             Views.Line.draw({
-                container: context.canvas,
+                container: Reflect.construct(Layer, [{ id: ID.grid, stage, gridConfig: UserConfig.grid }]),
                 options: {
-                    /* showGrid: true, */// # optional as it's {true} by default
-                    points: [],
+                    showGrid: true,
                 }
             });
-
-        })
 
     });
     

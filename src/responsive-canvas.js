@@ -26,7 +26,7 @@
  *   gridConfig: { scale: 20 }
  * });
  *
- * console.log(rc.id); // → "layer-canvas-1" (auto-generated string ID)
+ * console.log(rc.id); // → "layer-1" (auto-generated string ID)
  *
  * rc.onRender((ctx, grid) => {
  *   // grid.GRIDCELL_DIM — responsive unit size in device pixels
