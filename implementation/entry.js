@@ -8,13 +8,13 @@ import Counter from './counter.js';
  * @description USEFUL ALIASED (TYPED) PROXY GETTERS each returning a string.
  * @example COLOR.red - will print 'red',  where (typeof 'red' === 'string');
  */
-const { ID, COLOR, UI_EVENT } = PRINT;
+const { ID, COLOR } = PRINT;
 
 /**
  * @implementation
  * @example - This is where you implement your own rendering logic (implementation entry point)
  */
-export default function ({Layer, HitDetector}) {
+export default function ({Layer}) {
     
     Stage
     .init({
@@ -56,31 +56,13 @@ export default function ({Layer, HitDetector}) {
 
 
         }
-        drawLine(null);
+        drawLine();
 
-        /* gridLayer.onRender(( context, grid )=>{ */
-
-            const
-                allPoints = setRange(...Helpers.QUADRANT.Q4).map((coord) => ({ x: coord, y: coord }))
-                ,
-                to = (allPoints.length + 1)
-                ;
-
-            Counter({
-                from: 0,
-                to,
-                duration: 1,
-                callback({ count }) {
-
-                    /**
-                     * @override
-                     */
-                    drawLine({
-                        points: [...allPoints.slice(0, count)]
-                    });
-
-                }
-            });
+        const
+            allPoints = setRange(...Helpers.QUADRANT.Q4).map((coord) => ({ x: coord, y: coord }))
+            ,
+            to = (allPoints.length + 1)
+            ;
 
         animation?.cancel?.();
         animation = Counter({
