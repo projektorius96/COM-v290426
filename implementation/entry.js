@@ -30,9 +30,9 @@ export default function ({Layer, HitDetector}) {
             container: gridLayer,
         });
 
-        gridLayer.onRender(()=>{
-
         const lineLayer = Reflect.construct(Layer, [{ stage, gridConfig: UserConfig.grid }]);
+        let animation = null;
+
         function drawLine(overridenOptions = {}) {
             
             // Draw Japan flag
@@ -82,9 +82,22 @@ export default function ({Layer, HitDetector}) {
                 }
             });
 
-        /* }) */
+        animation?.cancel?.();
+        animation = Counter({
+            from: 0,
+            to,
+            duration: 1,
+            callback({ count }) {
 
-        })
+                /**
+                 * @override
+                 */
+                drawLine({
+                    points: [...allPoints.slice(0, count)]
+                });
+
+            }
+        });
 
         
 
