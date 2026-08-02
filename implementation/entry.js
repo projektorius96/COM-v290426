@@ -22,10 +22,36 @@ export default function ({Layer, HitDetector}) {
     })
     .on(({ stage }) => {
 
-            Views.Grid.draw({
-                container: Reflect.construct(Layer, [{ id: ID.grid, stage, gridConfig: UserConfig.grid }]),
-                options: {}
+        const gridLayer = Reflect.construct(Layer, [{ id: ID.grid, stage, gridConfig: UserConfig.grid }]);
+        Views.Grid.draw({
+            container: gridLayer,
+            options: {}
+        });
+
+        const circleLayer = Reflect.construct(Layer, [{ stage, gridConfig: UserConfig.grid }]);
+        function drawCircle(overridenOptions = {}) {
+            
+            // Draw Japan flag
+            Views.Line.draw({
+                container: circleLayer,
+                options: {
+                    points: [...setRange(...Helpers.QUADRANT.Q4).map((coords)=> coords = {x: coords, y: coords} )],
+                    scale: [2, 2],
+                    color: COLOR.red,
+                    lineWidth: 20,
+                    opacity: 1,
+                    /* ...overridenOptions */
+                },
+                // Called at the end of every render (initial + every resize repaint)
+                onAfterRender: ({container, options}) => {
+                    // Do some finalization work here,.. 
+                    // ..except calling {container.render()} itself - that would halt your runtime due to recursive calls!
+                }
             });
+
+        }
+
+        gridLayer.onRender( ( context, grid )=> drawCircle(null));
 
     });
     
