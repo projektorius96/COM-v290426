@@ -1,5 +1,7 @@
 import { degToRad, setRange } from "../utils.js";
 
+const lineRenderState = new WeakMap();
+
 function normalizePoints(points = []) {
     if (!Array.isArray(points) || points.length === 0) {
         return [];
@@ -14,10 +16,23 @@ function normalizePoints(points = []) {
 
 export class Line {
 
-    static draw({container, options, onAfterRender}) {
+    static draw({container, options = {}, onAfterRender}) {
+        const state = lineRenderState.get(container);
+
+        if (state) {
+            state.options = options;
+            state.onAfterRender = onAfterRender;
+            container.render();
+            return;
+        }
+
+        const nextState = { options, onAfterRender };
+        lineRenderState.set(container, nextState);
 
         container.onRender((ctx, grid) => {
-            const points = normalizePoints(options.points);
+            const { options: currentOptions = {}, onAfterRender: currentOnAfterRender } =
+                lineRenderState.get(container) ?? {};
+            const points = normalizePoints(currentOptions.points);
 
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -26,16 +41,16 @@ export class Line {
             const { centerX, centerY, GRIDCELL_DIM } = grid;
 
             // // Draw the square using line paths
-            ctx.strokeStyle = (options.color ?? 'grey');
-            ctx.lineWidth =   (options.lineWidth ?? 2);
+            ctx.strokeStyle = (currentOptions.color ?? 'grey');
+            ctx.lineWidth =   (currentOptions.lineWidth ?? 2);
             
-            ctx.opacity = (options.opacity ?? 1);
-                ctx.globalAlpha = options.opacity;
+            ctx.opacity = (currentOptions.opacity ?? 1);
+                ctx.globalAlpha = currentOptions.opacity ?? 1;
 
             ctx.translate(centerX, centerY);
-            if (options.points.length > 0) {
-                options.points.forEach(({x, y})=>{
-                    const [SCALE_X, SCALE_Y] = (options.scale ?? [1, 1]);
+            if (points.length > 0) {
+                points.forEach(({x, y})=>{
+                    const [SCALE_X, SCALE_Y] = (currentOptions.scale ?? [1, 1]);
                     ctx.beginPath();
                         ctx.moveTo(0, 0);
                         ctx.lineTo(SCALE_X * GRIDCELL_DIM * Math.cos( degToRad(x) ), SCALE_Y * GRIDCELL_DIM * Math.sin( degToRad(y) ));
@@ -45,8 +60,8 @@ export class Line {
 
             ctx.restore();
 
-            if (typeof onAfterRender === 'function') {
-                onAfterRender({container, options});
+            if (typeof currentOnAfterRender === 'function') {
+                currentOnAfterRender({container, options: currentOptions});
             }
 
         });
