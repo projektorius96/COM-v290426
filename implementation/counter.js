@@ -1,24 +1,19 @@
 /**
- * A reliable counter driven by the Web Animations API (WAAPI) and requestAnimationFrame.
+ * A resize-safe counter driven by requestAnimationFrame and performance.now().
  *
- * Unlike setInterval / setTimeout, ticks are derived from `animation.currentTime`,
- * which is synchronised with the browser rendering pipeline and automatically
- * suspended in background tabs — giving drift-free, tab-aware counting.
- *
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/KeyframeEffect|KeyframeEffect}
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Animation|Animation}
+ * Ticks are derived from elapsed wall-clock time, so large frame gaps caused by
+ * viewport emulation or devtools resizes are fully replayed instead of stalling
+ * the consumer state.
  *
  * @param {object}   [options]
- * @param {string}   [options.id='animation-counter']  Custom-element tag name used as the animation target (must contain a hyphen)
  * @param {number}   [options.from=0]                  Counter start value (inclusive)
  * @param {number}   [options.to=180]                  Counter end value (exclusive; resets to `from` after reaching this)
  * @param {number}   [options.duration=1]              Milliseconds per tick
- * @param {number}   [options.iterations=Infinity]     WAAPI animation iteration count
- * @param {Function} options.callback                  Invoked on each tick with `{ count }`; `this` is bound to the Animation instance
- * @returns {Animation}
+ * @param {number}   [options.iterations=Infinity]     Number of full counter cycles to run
+ * @param {Function} options.callback                  Invoked on each tick with `{ count }`; `this` is bound to the returned controller
+ * @returns {{cancel: Function, pause: Function, play: Function, count: number, running: boolean}}
  */
 export default function Counter({
-    id         = 'animation-counter',
     from       = 0,
     to         = 180,
     duration   = 1,
@@ -26,78 +21,102 @@ export default function Counter({
     callback,
 } = {}) {
 
-    // Register a lightweight custom element as the WAAPI animation target.
-    if (!customElements.get(id)) {
-        customElements.define(id, class extends HTMLElement {
-            constructor() {
-                super();
-                this.id = id;
-                
-                this.style.cssText = 'position: absolute;';
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) {
+        throw new TypeError('"Counter" expects numeric "from" and "to" values where to > from.');
+    }
+
+    if (!Number.isFinite(duration) || duration <= 0) {
+        throw new TypeError('"Counter" expects "duration" to be a positive number.');
+    }
+
+    if (typeof callback !== 'function') {
+        throw new TypeError('"Counter" expects "callback" to be a function.');
+    }
+
+    const totalIterations = iterations === Infinity ? Infinity : Math.max(0, Math.floor(iterations));
+
+    let count = from;
+    let rafId = null;
+    let startTime = 0;
+    let processedTicks = 0;
+    let completedIterations = 0;
+    let pausedAt = 0;
+    let running = false;
+
+    const controller = {
+        cancel() {
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
             }
-        });
-    }
-    
-    let target = document.getElementById(id);
-    if (!target) {
-        target = new (customElements.get(id))();
-        document.body.appendChild(target);
-    }
 
-    const effect = new KeyframeEffect(
-        target,
-        [{ opacity: 0 }, { opacity: 1 }],
-        { duration, iterations },
-    );
+            running = false;
+            pausedAt = 0;
+        },
+        pause() {
+            if (!running) return;
 
-    const animation = new Animation(effect, document.timeline);
-    animation.play();
+            running = false;
+            pausedAt = performance.now();
 
-    let count    = from;
-    let lastTick = 0;
-    let rafId;
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        },
+        play() {
+            if (running || completedIterations >= totalIterations) {
+                return;
+            }
 
-    function trackTime() {
-        const time = animation.currentTime;
+            const now = performance.now();
+            if (startTime === 0) {
+                startTime = now;
+            } else if (pausedAt !== 0) {
+                startTime += now - pausedAt;
+                pausedAt = 0;
+            }
 
-        if (time !== null) {
-            const tick = Math.floor(time / duration);
+            running = true;
+            rafId = requestAnimationFrame(trackTime);
+        },
+        get count() {
+            return count;
+        },
+        get running() {
+            return running;
+        },
+    };
 
-            if (tick > lastTick) {
-                lastTick = tick;
-                count++;
+    function trackTime(now) {
+        if (!running) {
+            return;
+        }
 
-                if (count === to) {
-                    count = from; // wrap back to the start of the cycle
+        const elapsed = now - startTime;
+        const targetTick = Math.floor(elapsed / duration);
+
+        while (processedTicks < targetTick && completedIterations < totalIterations) {
+            processedTicks += 1;
+            count += 1;
+
+            if (count === to) {
+                count = from;
+                completedIterations += 1;
+
+                if (completedIterations >= totalIterations) {
+                    controller.cancel();
+                    return;
                 }
-
-                // Fire every tick — consumers receive count === from at cycle
-                // boundaries, letting them reset rendered state without flicker.
-                callback.call(animation, { count });
             }
+
+            callback.call(controller, { count });
         }
 
         rafId = requestAnimationFrame(trackTime);
     }
 
-    rafId = requestAnimationFrame(trackTime);
-
-    // Stop the rAF loop when the animation is explicitly cancelled.
-    animation.addEventListener('cancel', () => cancelAnimationFrame(rafId));
-
-    return animation;
+    controller.play();
+    return controller;
 
 }
-
-/* // --- Usage example ---
-Counter({
-    duration:   1000,
-    to:         360,
-    iterations: Infinity,
-    callback({ count }) {
-        
-        // EXAMPLE # Log only odd numbers
-        if (count % 2 !== 0) console.log(count);
-
-    },
-}); */
