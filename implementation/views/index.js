@@ -1,8 +1,10 @@
 import { Line, syncHitRegion } from "./line-view.js";
+import { Grid } from "./grid-view.js";
 
 export default class {
 
     static Line = Line;
+    static Grid = Grid;
     static {
         Object.assign(this.Line, {
             syncHitRegion

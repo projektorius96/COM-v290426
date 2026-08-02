@@ -22,11 +22,9 @@ export default function ({Layer, HitDetector}) {
     })
     .on(({ stage }) => {
 
-            Views.Line.draw({
+            Views.Grid.draw({
                 container: Reflect.construct(Layer, [{ id: ID.grid, stage, gridConfig: UserConfig.grid }]),
-                options: {
-                    showGrid: true,
-                }
+                options: {}
             });
 
     });
