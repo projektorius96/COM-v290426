@@ -22,9 +22,6 @@ export class Line {
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-            // Draw reference grid (optional)
-            container.drawGrid();
-
             // Draw a square using PATH PRIMITIVES (4 lines)
             const { centerX, centerY, GRIDCELL_DIM } = grid;
 

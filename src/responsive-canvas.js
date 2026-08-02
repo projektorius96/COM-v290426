@@ -152,8 +152,8 @@ export class ResponsiveCanvas {
   #scale;
   /** @type {string} */
   #id;
-  /** @type {Function|null} */
-  #renderCallback = null;
+  /** @type {Function[]} */
+  #renderCallbacks = [];
   /** @type {{ GRIDCELL_DIM: number, centerX: number, centerY: number, cols: number, rows: number, dpr: number, visualViewport: object }} */
   #grid = {};
   /** @type {object|null} */
@@ -316,13 +316,15 @@ export class ResponsiveCanvas {
   }
 
   /**
-   * Internal render method.
+   * Internal render method. Clears the canvas once, then calls every registered
+   * render callback in registration order.
    * @private
    */
   #draw() {
-    if (typeof this.#renderCallback === 'function') {
-      this.#ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
-      this.#renderCallback(this.#ctx, this.#grid);
+    if (this.#renderCallbacks.length === 0) return;
+    this.#ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
+    for (const cb of this.#renderCallbacks) {
+      cb(this.#ctx, this.#grid);
     }
   }
 
@@ -356,13 +358,14 @@ export class ResponsiveCanvas {
   }
 
   /**
-   * Register a render callback that is invoked on every resize and
-   * whenever {@link ResponsiveCanvas#render} is called manually.
+   * Register a render callback. Each call adds a new callback to the render
+   * pipeline; callbacks are invoked in registration order on every repaint.
+   * The canvas is cleared once before the first callback runs.
    *
    * @param {(ctx: CanvasRenderingContext2D, grid: object) => void} callback
    */
   onRender(callback) {
-    this.#renderCallback = callback;
+    this.#renderCallbacks.push(callback);
     this.#draw(); // first paint
   }
 
